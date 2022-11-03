@@ -1,4 +1,3 @@
-import React, { Component } from 'react';
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
 import { ThreeDots } from 'react-loader-spinner';
 
@@ -7,9 +6,10 @@ import { Searchbar, ImageGallery, Button, Modal } from './index';
 
 import { Box } from './Box';
 import { Container } from './App.styled';
+import { useReducer, useEffect, useRef } from 'react';
 
-export class App extends Component {
-  state = {
+export function App() {
+  const initialState = {
     page: 1,
     query: '',
     photos: [],
@@ -22,135 +22,125 @@ export class App extends Component {
     },
   };
 
-  // Logic for first research
-  // componentDidMount() {
-  //   fetchPhoto(this.state.query, this.state.page)
-  //     .then(r => {
-  //       this.setState(() => {
-  //         return {
-  //           photos: [...this.state.photos, ...r.hits],
-  //           totalItems: r.total,
-  //         };
-  //       });
-  //     })
-  //     .catch(error => {
-  //       Notify.failure(`We have a problem!`);
-  //     });
-  // }
+  function reducer(prevState, { type, payload }) {
+    switch (type) {
+      case 'page':
+        return { ...prevState, page: payload };
+      case 'query':
+        return { ...prevState, query: payload };
+      case 'photos':
+        return { ...prevState, photos: [...prevState.photos, ...payload] };
+      case 'totalItems':
+        return { ...prevState, totalItems: payload };
+      case 'isLoading':
+        return { ...prevState, isLoading: payload };
+      case 'isModalShow':
+        return { ...prevState, isModalShow: payload };
+      case 'modalData':
+        return { ...prevState, modalData: payload };
 
-  componentDidUpdate(_, prevState) {
-    // Fetch data
-    if (
-      prevState.page !== this.state.page ||
-      prevState.query !== this.state.query
-    ) {
-      fetchPhoto(this.state.query, this.state.page)
-        .then(r => {
-          if (r.hits.length === 0) {
-            Notify.failure(`We didn't find anything!`);
-          }
-          this.setState(prevState => {
-            return {
-              photos: [...prevState.photos, ...r.hits],
-              totalItems: r.total,
-            };
-          });
-        })
-        .catch(error => {
-          Notify.failure(`We have a problem!`);
-        })
-        .finally(() => {
-          this.setState(() => {
-            return {
-              isLoading: false,
-            };
-          });
-        });
+      default:
+        return { ...prevState };
     }
   }
 
-  handelSubmit = e => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { query, photos, totalItems, page, isLoading, isModalShow, modalData } =
+    state;
+
+  const isFirstLoad = useRef(1);
+  useEffect(() => {
+    if (isFirstLoad.current < 3) {
+      isFirstLoad.current += 1;
+      return;
+    }
+
+    if (query === '') {
+      Notify.failure('Request can no be empty string');
+      return;
+    }
+
+    fetchPhoto(query, page)
+      .then(r => {
+        if (r.hits.length === 0) {
+          Notify.failure(`We didn't find anything!`);
+        }
+        dispatch({ type: 'photos', payload: [...r.hits] });
+        dispatch({ type: 'totalItems', payload: r.total });
+      })
+      .catch(error => {
+        Notify.failure(`We have a problem!`);
+      })
+      .finally(() => {
+        dispatch({ type: 'isLoading', payload: false });
+      });
+  }, [page, query]);
+
+  const handelSubmit = e => {
     e.preventDefault();
     const searchQuery = e.currentTarget.elements.query.value;
 
-    if (searchQuery !== this.state.query) {
-      this.setState(() => {
-        return {
-          page: 1,
-          query: searchQuery,
-          photos: [],
-          totalItems: 0,
-          isLoading: true,
-        };
-      });
+    if (searchQuery !== query) {
+      dispatch({ type: 'page', payload: 1 });
+      dispatch({ type: 'query', payload: searchQuery });
+      dispatch({ type: 'photos', payload: [] });
+      dispatch({ type: 'totalItems', payload: 0 });
+      dispatch({ type: 'isLoading', payload: true });
     } else {
       Notify.failure(`Put something else!`);
     }
   };
 
-  loadMore = () => {
-    this.setState(prevState => {
-      return { page: prevState.page + 1, isLoading: true };
-    });
+  const loadMore = () => {
+    dispatch({ type: 'page', payload: page + 1 });
+    dispatch({ type: 'isLoading', payload: true });
   };
 
-  toggleIsModalShow = () => {
-    this.setState(prevState => {
-      return { isModalShow: !prevState.isModalShow };
-    });
+  const toggleIsModalShow = () => {
+    dispatch({ type: 'isModalShow', payload: !isModalShow });
   };
 
-  openModalWindow = newModalData => {
-    if (newModalData.largeImageURL !== this.state.modalData.largeImageURL) {
-      this.setState(() => {
-        return {
-          modalData: { ...newModalData },
-        };
-      });
+  const openModalWindow = newModalData => {
+    if (newModalData.largeImageURL !== modalData.largeImageURL) {
+      dispatch({ type: 'modalData', payload: { ...newModalData } });
     }
-    this.toggleIsModalShow();
+    toggleIsModalShow();
   };
 
-  render() {
-    const { handelSubmit, loadMore, toggleIsModalShow, openModalWindow } = this;
-    const { photos, totalItems, page, isLoading, isModalShow, modalData } =
-      this.state;
+  return (
+    <Container>
+      {/* ---------Header------------- */}
+      <Searchbar handelSubmit={handelSubmit} />
 
-    return (
-      <Container>
-        {/* ---------Header------------- */}
-        <Searchbar handelSubmit={handelSubmit} />
+      {/* ---------Gallery------------- */}
+      <ImageGallery photos={photos} openModalWindow={openModalWindow} />
 
-        {/* ---------Gallery------------- */}
-        <ImageGallery photos={photos} openModalWindow={openModalWindow} />
+      {/* ---------Load more------------- */}
+      {totalItems > page * 12 && !isLoading && (
+        <Box display="flex" justifyContent="center">
+          <Button labelName="Load more" handleClick={loadMore} />
+        </Box>
+      )}
 
-        {/* ---------Load more------------- */}
-        {totalItems > page * 12 && !isLoading && (
-          <Box display="flex" justifyContent="center">
-            <Button labelName="Load more" handleClick={loadMore} />
-          </Box>
-        )}
+      {/* ---------Loader------------- */}
+      {isLoading && (
+        <Box display="flex" justifyContent="center">
+          <ThreeDots
+            height="80"
+            width="80"
+            radius="9"
+            color="#3f51b5"
+            ariaLabel="three-dots-loading"
+            wrapperStyle={{}}
+            visible={true}
+          />
+        </Box>
+      )}
 
-        {/* ---------Loader------------- */}
-        {isLoading && (
-          <Box display="flex" justifyContent="center">
-            <ThreeDots
-              height="80"
-              width="80"
-              radius="9"
-              color="#3f51b5"
-              ariaLabel="three-dots-loading"
-              wrapperStyle={{}}
-              visible={true}
-            />
-          </Box>
-        )}
-
-        {/* ---------Modal window------------- */}
-        {isModalShow && (
-          <Modal modalData={modalData} toggleIsModalShow={toggleIsModalShow} />
-        )}
-      </Container>
-    );
-  }
+      {/* ---------Modal window------------- */}
+      {isModalShow && (
+        <Modal modalData={modalData} toggleIsModalShow={toggleIsModalShow} />
+      )}
+    </Container>
+  );
 }
