@@ -57,6 +57,7 @@ export function App() {
 
     if (query === '') {
       Notify.failure('Request can no be empty string');
+      dispatch({ type: 'isLoading', payload: false });
       return;
     }
 
