@@ -29,7 +29,7 @@ export function App() {
       case 'query':
         return { ...prevState, query: payload };
       case 'photos':
-        return { ...prevState, photos: [...prevState.photos, ...payload] };
+        return { ...prevState, photos: payload };
       case 'totalItems':
         return { ...prevState, totalItems: payload };
       case 'isLoading':
@@ -40,7 +40,7 @@ export function App() {
         return { ...prevState, modalData: payload };
 
       default:
-        return { ...prevState };
+        return prevState;
     }
   }
 
@@ -48,10 +48,10 @@ export function App() {
   const { query, photos, totalItems, page, isLoading, isModalShow, modalData } =
     state;
 
-  const isFirstLoad = useRef(1);
+  const isFirstLoad = useRef(true);
   useEffect(() => {
-    if (isFirstLoad.current < 3) {
-      isFirstLoad.current += 1;
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
       return;
     }
 
@@ -65,7 +65,7 @@ export function App() {
         if (r.hits.length === 0) {
           Notify.failure(`We didn't find anything!`);
         }
-        dispatch({ type: 'photos', payload: [...r.hits] });
+        dispatch({ type: 'photos', payload: [...photos, ...r.hits] });
         dispatch({ type: 'totalItems', payload: r.total });
       })
       .catch(error => {
@@ -74,6 +74,7 @@ export function App() {
       .finally(() => {
         dispatch({ type: 'isLoading', payload: false });
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, query]);
 
   const handelSubmit = e => {
